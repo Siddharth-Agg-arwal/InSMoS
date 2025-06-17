@@ -11,7 +11,7 @@ export default function Hero() {
     const router = useRouter();
 
     const handleSubscribeClick = () => {
-        router.push("/dashboard");
+        router.push("/in/dashboard");
     };
 
     return (

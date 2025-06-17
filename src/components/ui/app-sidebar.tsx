@@ -1,3 +1,4 @@
+"use client"
 import { useRouter } from "next/navigation" // Add this import
 import { Calendar, Home, Inbox, Search, Settings } from "lucide-react"
 
@@ -16,27 +17,27 @@ import {
 const items = [
     {
         title: "Dashboard",
-        url: "/dashboard",
+        url: "/in/dashboard",
         icon: Home,
     },
     {
         title: "Live Feed",
-        url: "/live-feed",
+        url: "/in/live-feed",
         icon: Inbox,
     },
     {
         title: "Appointments",
-        url: "/appointments",
+        url: "/in/appointments",
         icon: Calendar,
     },
     {
         title: "Patients",
-        url: "/patients",
+        url: "/in/patients",
         icon: Search,
     },
     {
         title: "Settings",
-        url: "/settings",
+        url: "/in/settings",
         icon: Settings,
     },
 ]
