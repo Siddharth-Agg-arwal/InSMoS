@@ -2,12 +2,12 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/ui/app-sidebar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
+return (
     <SidebarProvider>
-      <AppSidebar />
-      <main>
+    <AppSidebar />
+    <main>
         {children}
-      </main>
+    </main>
     </SidebarProvider>
-  );
+);
 }

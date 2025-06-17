@@ -1,3 +1,4 @@
+import { useRouter } from "next/navigation" // Add this import
 import { Calendar, Home, Inbox, Search, Settings } from "lucide-react"
 
 import {
@@ -11,57 +12,65 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-// Menu items.
+// Menu items with actual routes.
 const items = [
     {
-        title: "Home",
-        url: "#",
+        title: "Dashboard",
+        url: "/dashboard",
         icon: Home,
     },
     {
-        title: "Inbox",
-        url: "#",
+        title: "Live Feed",
+        url: "/live-feed",
         icon: Inbox,
     },
     {
-        title: "Calendar",
-        url: "#",
+        title: "Appointments",
+        url: "/appointments",
         icon: Calendar,
     },
     {
-        title: "Search",
-        url: "#",
+        title: "Patients",
+        url: "/patients",
         icon: Search,
     },
     {
         title: "Settings",
-        url: "#",
+        url: "/settings",
         icon: Settings,
     },
 ]
 
 export function AppSidebar() {
+    const router = useRouter() // Use the router
+
     return (
         <Sidebar>
-        <SidebarContent>
-            <SidebarGroup>
-            <SidebarGroupLabel>Application</SidebarGroupLabel>
-            <SidebarGroupContent>
-                <SidebarMenu>
-                {items.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                        <a href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                        </a>
-                    </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ))}
-                </SidebarMenu>
-            </SidebarGroupContent>
-            </SidebarGroup>
-        </SidebarContent>
+            <SidebarContent>
+                <SidebarGroup>
+                    <SidebarGroupLabel>Application</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            {items.map((item) => (
+                                <SidebarMenuItem key={item.title}>
+                                    <SidebarMenuButton
+                                        asChild
+                                        onClick={() => router.push(item.url)}
+                                    >
+                                        <button
+                                            type="button"
+                                            className="flex items-center gap-2 w-full text-left"
+                                        >
+                                            <item.icon />
+                                            <span>{item.title}</span>
+                                        </button>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            ))}
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+            </SidebarContent>
         </Sidebar>
     )
 }
