@@ -1,7 +1,7 @@
 export default function StatValue({ value }: { value: number }) {
     return(
         <div>
-            <div className=" flex items-center align-middle justify-center gap-2 p-12.5">
+            <div className=" flex items-center align-middle justify-center gap-2 p-15">
                 {/* <span className="text-sm text-muted-foreground">Stat Value</span> */}
                 <span className="text-5xl font-semibold">{value}</span>
             </div>

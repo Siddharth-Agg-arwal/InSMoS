@@ -44,7 +44,7 @@ return (
     //     <CardDescription>January - June 2024</CardDescription>
     // </CardHeader>
     // <CardContent>
-        <ChartContainer config={chartConfig} className="h-40">
+        <ChartContainer config={chartConfig} className="h-45">
         <BarChart
             accessibilityLayer
             data={chartData}

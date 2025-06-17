@@ -1,6 +1,6 @@
 "use client"
-import { useRouter } from "next/navigation" // Add this import
-import { Calendar, Home, Inbox, Search, Settings } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Calendar, Home, Inbox, Search, Settings, HelpCircle, Flag } from "lucide-react"
 
 import {
     Sidebar,
@@ -68,6 +68,36 @@ export function AppSidebar() {
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                             ))}
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+                {/* Help Group */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Help</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild>
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-2 w-full text-left"
+                                    >
+                                        <HelpCircle />
+                                        <span>Help me</span>
+                                    </button>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild>
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-2 w-full text-left"
+                                    >
+                                        <Flag />
+                                        <span>Report</span>
+                                    </button>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarGroupContent>
                 </SidebarGroup>
