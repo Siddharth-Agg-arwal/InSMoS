@@ -1,9 +1,11 @@
+import { LiveMonitoring } from "@/components/live-monitoring-table";
+import SearchBar from "@/components/search-bar";
 import { SquareCard } from "@/components/ui/square-card";
 import { Activity, Camera, Cpu, HeartPulse } from "lucide-react";
 
 export default function LiveFeed() {
 return (
-<div className="flex h-fit bg-gray-100">
+<div className="flex h-screen bg-gray-100">
     <main
     className="pt-8 pr-24 pb-8 w-full"
     style={{ width: "calc(100vw - 17rem)" }}
@@ -42,8 +44,9 @@ return (
         bgColor="bg-[#D6E4E5]"
         />
     </div>
-
-    
+    <div className="ml-20 mt-8 bg-white rounded-xl p-6">
+        <LiveMonitoring />
+    </div>
     </main>
 </div>
 );

@@ -35,8 +35,8 @@ export default function Hero() {
                 className={cn(
                     "[mask-image:radial-gradient(650px_circle_at_center,black,transparent)]",
                 )}
-                width={50}
-                height={50}
+                width={60}
+                height={60}
                 squares={[25, 25]}
                 squaresClassName="hover:fill-[#777CFC]"
             />
