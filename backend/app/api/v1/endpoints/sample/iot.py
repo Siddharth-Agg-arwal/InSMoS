@@ -26,7 +26,7 @@ def disconnect_mqtt():
     mqtt_client.disconnect()
     print("Disconnected from MQTT Broker.")
 
-@router.websocket("/ws/simulate")
+@router.websocket("/")
 async def simulate_eeg_data_stream(websocket: WebSocket):
     """
     Simulates a live stream of EEG data from an IoT device.
@@ -41,7 +41,7 @@ async def simulate_eeg_data_stream(websocket: WebSocket):
         while True:
             # Generate random EEG data conforming to the schema
             eeg_data = EEGDataCreate(
-                patient_id=2,
+                patient_id=1,
                 timestamp=datetime.now(),
                 channel_data=[random.uniform(-100.0, 100.0) for _ in range(8)]
             )
