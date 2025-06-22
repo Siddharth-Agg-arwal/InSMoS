@@ -11,7 +11,7 @@ import {
     import { Circle, Clock } from "lucide-react"
 import SearchBar from "./search-bar";
     
-    const invoices = [
+    const patients = [
     {
         patient: "Sid",
         age: "12",
@@ -81,23 +81,23 @@ import SearchBar from "./search-bar";
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {invoices.map((invoice, idx) => (
-                        <TableRow key={invoice.patient + invoice.doctor + idx}>
-                            <TableCell className="font-medium">{invoice.patient}</TableCell>
-                            <TableCell>{invoice.age}</TableCell>
+                    {patients.map((patient, idx) => (
+                        <TableRow key={patient.patient + patient.doctor + idx}>
+                            <TableCell className="font-medium">{patient.patient}</TableCell>
+                            <TableCell>{patient.age}</TableCell>
                             <TableCell>
-                                <span className={getStatusClass(invoice.status)}>
-                                    {invoice.status}
+                                <span className={getStatusClass(patient.status)}>
+                                    {patient.status}
                                 </span>
                             </TableCell>
-                            <TableCell>{invoice.doctor}</TableCell>
+                            <TableCell>{patient.doctor}</TableCell>
                             <TableCell className="text-right flex items-center justify-end gap-2">
-                                {invoice.updated === "Live" ? (
+                                {patient.updated === "Live" ? (
                                     <Circle className="h-3 w-3 text-green-500 animate-pulse" />
                                 ) : (
                                     <Clock className="h-3 w-3 text-gray-400" />
                                 )}
-                                <span>{invoice.updated}</span>
+                                <span>{patient.updated}</span>
                             </TableCell>
                         </TableRow>
                     ))}
