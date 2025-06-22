@@ -178,9 +178,10 @@
   }
 }
 
-body{
-  margin : 0;
+body {
+  margin: 0;
   background-color: #FFFFFF;
+  font-family: 'Open Sans', Arial, sans-serif;
 }
 
 h1{
