@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useToast } from '../../../components/ui/use-toast';
 import { AlertCircle, FileSpreadsheet, Upload, BarChart4} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EEGLineChart, EEGSeries } from '@/components/eeg/eeg-line-chart';
+import { EEGStatsBarChart } from '@/components/eeg/eeg-stats-bar-chart';
 import { Button } from '@/components/ui/button';
 
 // Types for our analysis
@@ -243,6 +245,7 @@ export default function AnalysisDashboard() {
 const [selectedFile, setSelectedFile] = useState<File | null>(null);
 const [isAnalyzing, setIsAnalyzing] = useState(false);
 const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+const [eegSeries, setEegSeries] = useState<EEGSeries[]>([]);
 const { toast } = useToast();
 
 const handleFileSelected = async (file: File) => {
@@ -251,8 +254,20 @@ const handleFileSelected = async (file: File) => {
     setAnalysisResult(null);
 
     try {
-    const result = await analyzeExcel(file);
-    setAnalysisResult(result);
+        const result = await analyzeExcel(file);
+        setAnalysisResult(result);
+        // fetch EEG line data
+        try {
+            const form2 = new FormData();
+            form2.append('file', file);
+            const eegRes = await fetch(`${API_BASE}/analyze-eeg-lines?prefix=eeg_&max_points=1200`, { method: 'POST', body: form2 });
+            if (eegRes.ok) {
+                const eegJson = await eegRes.json();
+                setEegSeries(eegJson.series || []);
+            } else {
+                setEegSeries([]);
+            }
+        } catch { setEegSeries([]); }
     
     toast({
         title: "Analysis Complete",
@@ -287,8 +302,8 @@ return (
         </div>
     </header>
 
-    <main className="container mx-auto py-8 px-4 flex-1">
-        <div className="flex flex-col items-center space-y-8">
+    <main className="w-full max-w-[1600px] mx-auto py-6 px-4 md:px-6 flex-1">
+        <div className="flex flex-col space-y-8">
         {/* File Upload Area */}
         {(!analysisResult || isAnalyzing) && (
             <div className="w-full max-w-md">
@@ -313,7 +328,27 @@ return (
         )}
         
         {/* Results Display */}
-        <ResultsDisplay result={analysisResult} isLoading={isAnalyzing} />
+                        <ResultsDisplay result={analysisResult} isLoading={isAnalyzing} />
+                        {analysisResult && (
+                            <EEGStatsBarChart stats={analysisResult.statistics.columns} />
+                        )}
+                        {eegSeries.length > 0 && !isAnalyzing && (
+                            <div className="w-full">
+                                <h2 className="text-xl font-semibold mb-2">EEG Channels</h2>
+                                <div className="grid gap-4"
+                                         style={{
+                                             display: 'grid',
+                                             gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))'
+                                         }}>
+                                    {eegSeries.map((s, idx) => (
+                                        <div key={s.column}
+                                                 className={idx < 3 ? '' : 'md:col-span-2 lg:col-span-1'}>
+                                            <EEGLineChart series={s} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
         
         {/* Reset Button */}
         {analysisResult && !isAnalyzing && (
@@ -322,6 +357,7 @@ return (
             onClick={() => {
                 setSelectedFile(null);
                 setAnalysisResult(null);
+                setEegSeries([]);
             }}
             className="mt-8"
             >
