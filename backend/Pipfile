@@ -14,5 +14,7 @@ websockets = "*"
 asyncio = "*"
 pydantic-settings = "*"
 paho-mqtt = "*"
+pandas = "*"
+numpy = "*"
 
 [dev-packages]
