@@ -16,7 +16,7 @@ async def websocket_seizure_alerts(websocket: WebSocket):
         manager.disconnect_alert(websocket)
 
 
-@router.websocket("/ws/live_eeg/{patient_id}")
+@router.websocket("/live_eeg/{patient_id}")
 async def websocket_live_eeg(websocket: WebSocket, patient_id: int):
     await manager.connect_patient(websocket, patient_id)
     try:
