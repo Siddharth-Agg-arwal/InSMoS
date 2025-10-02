@@ -11,7 +11,7 @@ GND - J4, 5
 12 - J3, DOUT 13
 13  -J3, DIN 11
 22 - J3, RESET 8
-21 - JP22 center, jumper removed
+21 - J3, 1 with JP22 2-3 short
 GND - J3, 10
 5 - J3, CS 7
 4 - J3, DRDY 15
