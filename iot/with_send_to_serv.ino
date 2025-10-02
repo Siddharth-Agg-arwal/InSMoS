@@ -2,14 +2,29 @@
 #include <PubSubClient.h>
 #include <SPI.h>
 #include <time.h>
-
+/*
+ESP pin - ADS1299
+3.3V - J4, 9
+5V - J4, 10
+GND - J4, 5
+14 - J3, CLK 3
+12 - J3, DOUT 13
+13  -J3, DIN 11
+22 - J3, RESET 8
+21 - JP22 center, jumper removed
+GND - J3, 10
+5 - J3, CS 7
+4 - J3, DRDY 15
+Refrence - J6, 36
+Main - J6, 34
+*/
 // ========== USER CONFIGURATION ==========
 // --- WiFi Credentials ---
 const char* ssid = "F14";
 const char* password = "12345678";
 
 // --- MQTT Broker Details ---
-const char* mqtt_server = "192.168.74.173"; // e.g., "192.168.1.100"
+const char* mqtt_server = "192.168.2.173"; // e.g., "192.168.1.100"
 const int mqtt_port = 1883;
 const char* mqtt_topic = "eeg/data"; // MQTT Topic to publish to
 
@@ -40,6 +55,7 @@ const byte CH1SET_REG = 0x05, MISC1_REG = 0x15;
 WiFiClient espClient;
 PubSubClient client(espClient);
 char json_payload[512]; // Buffer to hold the JSON payload
+const bool debug_no_wifi = false; // Set to 'true' to run without WiFi and MQTT.
 
 // --- ADS1299 & Data ---
 volatile boolean dataReady = false;
@@ -47,9 +63,9 @@ byte dataBuffer[27];
 SPISettings ads_spi_settings(1000000, MSBFIRST, SPI_MODE1);
 const float V_REF = 4.5;
 const float GAIN = 24.0;
-const float ADC_SCALE_FACTOR = V_REF / (GAIN * (pow(2, 23) - 1));
+const float ADC_SCALE_FACTOR = V_REF / (GAIN * (pow(2, 23)));
 float channel_filtered[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-const float filter_alpha = 0.95;
+const float filter_alpha = 0.97;
 
 // ========== INTERRUPT SERVICE ROUTINE (ISR) ==========
 void ICACHE_RAM_ATTR ISR_DRDY() {
@@ -61,12 +77,13 @@ void setup() {
   Serial.begin(115200);
   Serial.println("\n--- ADS1299 EEG MQTT Publisher ---");
 
-  // --- 1. Connect to WiFi and Sync Time ---
-  setup_wifi();
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-  // --- 2. Configure MQTT Client ---
-  client.setServer(mqtt_server, mqtt_port);
+  if (!debug_no_wifi) {
+    // --- 1. Connect to WiFi and Sync Time ---
+    setup_wifi();
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    // --- 2. Configure MQTT Client ---
+    client.setServer(mqtt_server, mqtt_port);
+  }
 
   // --- 3. Initialize ADS1299 Hardware (Your existing logic) ---
   pinMode(CS_PIN, OUTPUT);
@@ -84,23 +101,27 @@ void setup() {
 // ========== MAIN LOOP ==========
 void loop() {
   // Maintain MQTT connection
-  if (!client.connected()) {
+ if (!debug_no_wifi && !client.connected()) {
     reconnect();
   }
-  client.loop();
+  if (!debug_no_wifi) {
+    client.loop();
+  }
 
+// delay(500);
   // When the ADS1299 has new data available (triggered by ISR)
-  if (true) {
-    delay(20);
+  if (dataReady) {
     dataReady = false; // Reset the flag
     readData();        // Read the raw byte data from the chip
 
     float normalized_values[8]; // Array to hold the final processed values
 
-    // Process all 8 channels (Your existing logic)
+    // Process all 8 channels
     for (int i = 0; i < 8; i++) {
       int channelIndex = 3 + (i * 3);
       long rawValue = 0;
+
+      // Twos complement conversion
       if (dataBuffer[channelIndex] & 0x80) {
         rawValue = 0xFF000000;
       }
@@ -109,27 +130,39 @@ void loop() {
       rawValue |= dataBuffer[channelIndex + 2];
 
       float voltage_uV = rawValue * ADC_SCALE_FACTOR * 1000000.0;
+      float voltage_mV = voltage_uV / 1000.0;
 
-      channel_filtered[i] = filter_alpha * (channel_filtered[i] + voltage_uV - channel_filtered[i]);
+      // Filter DC offset
+      channel_filtered[i] = filter_alpha * channel_filtered[i] + (1 - filter_alpha) * voltage_uV;
       normalized_values[i] = voltage_uV - channel_filtered[i];
+
+      Serial.printf("CH%d: Raw = %ld, Voltage = %.4f uV, Filtered = %.4f uV\n",
+                    i + 1, rawValue, voltage_uV, normalized_values[i]);
     }
 
     // --- 4. Get Timestamp and Format JSON Payload ---
-    char timestamp[30];
-    getTimestamp(timestamp);
+    if (!debug_no_wifi) {
+      char timestamp[30];
+      getTimestamp(timestamp);
+      snprintf(json_payload, sizeof(json_payload),
+               "{\"patient_id\": %d, \"timestamp\": \"%s\", \"channel_data\": [%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f]}",
+               patient_id,
+               timestamp,
+               normalized_values[0], normalized_values[1], normalized_values[2], normalized_values[3],
+               normalized_values[4], normalized_values[5], normalized_values[6], normalized_values[7]);
 
-    // Create the JSON string
-    snprintf(json_payload, sizeof(json_payload),
-             "{\"patient_id\": %d, \"timestamp\": \"%s\", \"channel_data\": [%.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f]}",
-             patient_id,
-             timestamp,
-             normalized_values[0], normalized_values[1], normalized_values[2], normalized_values[3],
-             normalized_values[4], normalized_values[5], normalized_values[6], normalized_values[7]);
+      client.publish(mqtt_topic, json_payload);
+      Serial.print("Published to MQTT: ");
+      Serial.println(json_payload);
+    } else {
+      Serial.println("Debugging: Skipping MQTT publish due to debug_no_wifi flag.");
+      Serial.println("--- ADS1299 Data ---");
+      for (int i = 0; i < 8; i++) {
+        Serial.printf("%.4f,", normalized_values[i]);
+      }
+      Serial.println();
+    }
 
-    // --- 5. Publish to MQTT ---
-    client.publish(mqtt_topic, json_payload);
-    Serial.print("Published to MQTT: ");
-    Serial.println(json_payload);
   }
 }
 
@@ -214,8 +247,10 @@ void initializeADS() {
   delayMicroseconds(10);
   digitalWrite(RESET_PIN, HIGH);
   delay(200);
-  sendCommand(SDATAC);
+
+  sendCommand(SDATAC); // Stop continuous data conversion
   delay(10);
+
   byte deviceID = readRegister(ID_REG);
   Serial.print("Device ID read: 0x");
   Serial.println(deviceID, HEX);
@@ -223,20 +258,25 @@ void initializeADS() {
     Serial.println("ERROR: Device ID check failed. Halting.");
     while (1);
   }
+
+  // --- Recommended Changes ---
+  // Use default value 0x96 for 250SPS
   writeRegister(CONFIG1_REG, 0x96);
-  writeRegister(CONFIG3_REG, 0xEC);
+
+  // Use 0xE0 to enable the internal reference buffer.
+  writeRegister(CONFIG3_REG, 0xE0);
+
+  // Set all channels to be active with GAIN=8 and Normal Input
   for (int i = 0; i < 8; i++) {
-    if (i == 0) {
-      writeRegister(CH1SET_REG + i, 0x60);
-    } else {
-      writeRegister(CH1SET_REG + i, 0x81);
-    }
+    writeRegister(CH1SET_REG + i, 0x61);
   }
+  // -------------------------
+
   writeRegister(MISC1_REG, 0x00);
   delay(10);
-  digitalWrite(START_PIN, HIGH);
+  digitalWrite(START_PIN, HIGH); // Start conversions
   delay(10);
-  sendCommand(RDATAC);
+  sendCommand(RDATAC); // Resume continuous data conversion
 }
 
 void readData() {
