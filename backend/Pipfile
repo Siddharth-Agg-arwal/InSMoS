@@ -16,5 +16,6 @@ pydantic-settings = "*"
 paho-mqtt = "*"
 pandas = "*"
 numpy = "*"
+python-multipart = "*"
 
 [dev-packages]
