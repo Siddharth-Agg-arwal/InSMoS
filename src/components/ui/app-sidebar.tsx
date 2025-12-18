@@ -1,6 +1,6 @@
 "use client"
 import { useRouter } from "next/navigation"
-import { Calendar, Home, Inbox, Search, Settings, HelpCircle, Flag } from "lucide-react"
+import { Calendar, Home, Inbox, Search, Settings, HelpCircle, Flag, ChartNoAxesCombined} from "lucide-react"
 
 import {
     Sidebar,
@@ -24,6 +24,11 @@ const items = [
         title: "Live Feed",
         url: "/in/live-feed",
         icon: Inbox,
+    },
+    {
+        title: "Analysis",
+        url: "/in/analysis",
+        icon: ChartNoAxesCombined,
     },
     {
         title: "Appointments",
