@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live EEG Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+</head>
+<body>
+    <h1>Live EEG Data for Patient 1</h1>
+    <canvas id="eegChart" width="1200" height="400"></canvas>
+    <script>
+        const patientId = 1;
+        const ws = new WebSocket(`ws://localhost:8000/api/v1/ws/live_eeg/${patientId}`);
+
+        const ctx = document.getElementById('eegChart').getContext('2d');
+        
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'EEG Data',
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    data: [],
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'realtime',
+                        realtime: {
+                            duration: 20000,
+                            refresh: 1000,
+                            delay: 2000,
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Voltage'
+                        }
+                    }
+                },
+                animation: false
+            }
+        });
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            console.log(data);
+            if (data.channel_data) {
+                const now = Date.now();
+                chart.data.datasets[0].data.push({
+                    x: now,
+                    y: data.channel_data[0]
+                });
+                chart.update();
+            }
+        };
+
+        ws.onopen = function(event) {
+            console.log("WebSocket connection established.");
+        };
+
+        ws.onclose = function(event) {
+            console.log("WebSocket connection closed.");
+        };
+
+        ws.onerror = function(event) {
+            console.error("WebSocket error:", event);
+        };
+    </script>
+</body>
+</html>
