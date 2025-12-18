@@ -138,10 +138,12 @@ return (
 // Results Display Component
 const ResultsDisplay = ({ 
 result, 
-isLoading 
+isLoading,
+seizureDetected,
 }: { 
 result: AnalysisResult | null;
 isLoading: boolean;
+seizureDetected: boolean | null;
 }) => {
 if (!result || isLoading) return null;
 
@@ -177,7 +179,25 @@ return (
             </div>
         </div>
         </CardContent>
-    </Card>
+        </Card>
+
+        {/* Seizure Detection Result Card */}
+        {seizureDetected !== null && (
+            <Card className={`w-full ${seizureDetected ? 'border-red-500 bg-red-100 dark:bg-red-900/20' : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10'} border-2`}
+                        style={{ width: 'calc(95vw - var(--sidebar-width))' }}>
+                <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                        <span>Seizure Detection</span>
+                        <span className={`text-sm px-3 py-1 rounded-full font-medium ${seizureDetected ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                            {seizureDetected ? 'Yes' : 'No'}
+                        </span>
+                    </CardTitle>
+                    <CardDescription className={`text-base ${seizureDetected ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {seizureDetected ? 'Seizure detected for the provided timeframe.' : 'No seizures were detected in the given timeframe of data.'}
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+        )}
 
     <Card>
         <CardHeader>
@@ -215,27 +235,6 @@ return (
         </div>
         </CardContent>
     </Card>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {result.visualizations.map(viz => (
-        <Card key={viz.id}>
-            <CardHeader>
-            <CardTitle className="text-lg">{viz.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-            <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-                {/* This would be replaced with actual chart components */}
-                <div className="text-center">
-                <BarChart4 className="h-10 w-10 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-500">
-                    {viz.type.charAt(0).toUpperCase() + viz.type.slice(1)} Chart
-                </p>
-                </div>
-            </div>
-            </CardContent>
-        </Card>
-        ))}
-    </div>
     </div>
 );
 };
@@ -246,6 +245,7 @@ const [selectedFile, setSelectedFile] = useState<File | null>(null);
 const [isAnalyzing, setIsAnalyzing] = useState(false);
 const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 const [eegSeries, setEegSeries] = useState<EEGSeries[]>([]);
+const [seizureDetected, setSeizureDetected] = useState<boolean | null>(null);
 const { toast } = useToast();
 
 const handleFileSelected = async (file: File) => {
@@ -254,8 +254,10 @@ const handleFileSelected = async (file: File) => {
     setAnalysisResult(null);
 
     try {
-        const result = await analyzeExcel(file);
+    const result = await analyzeExcel(file);
         setAnalysisResult(result);
+    // Random seizure detection placeholder
+    setSeizureDetected(Math.random() < 0.5);
         // fetch EEG line data
         try {
             const form2 = new FormData();
@@ -302,11 +304,11 @@ return (
         </div>
     </header>
 
-    <main className="w-full max-w-[1600px] mx-auto py-6 px-4 md:px-6 flex-1">
-        <div className="flex flex-col space-y-8">
+    <main className="py-6 px-4 md:px-6 flex-1 mx-auto" style={{ width: 'calc(95vw - var(--sidebar-width))' }}>
+        <div className="flex flex-col space-y-8 w-full mx-auto">
         {/* File Upload Area */}
         {(!analysisResult || isAnalyzing) && (
-            <div className="w-full max-w-md">
+            <div className="w-full max-w-md mx-auto">
             <FileUploadArea 
                 onFileSelected={handleFileSelected} 
                 isLoading={isAnalyzing} 
@@ -328,25 +330,25 @@ return (
         )}
         
         {/* Results Display */}
-                        <ResultsDisplay result={analysisResult} isLoading={isAnalyzing} />
+                        <ResultsDisplay result={analysisResult} isLoading={isAnalyzing} seizureDetected={seizureDetected} />
                         {analysisResult && (
                             <EEGStatsBarChart stats={analysisResult.statistics.columns} />
                         )}
                         {eegSeries.length > 0 && !isAnalyzing && (
-                            <div className="w-full">
+                            <div style={{ width: 'calc(95vw - var(--sidebar-width))' }}>
                                 <h2 className="text-xl font-semibold mb-2">EEG Channels</h2>
-                                <div className="grid gap-4"
-                                         style={{
-                                             display: 'grid',
-                                             gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))'
-                                         }}>
-                                    {eegSeries.map((s, idx) => (
-                                        <div key={s.column}
-                                                 className={idx < 3 ? '' : 'md:col-span-2 lg:col-span-1'}>
-                                            <EEGLineChart series={s} />
-                                        </div>
+                                <div style={{ width: 'calc(95vw - var(--sidebar-width))' }}className="grid gap-4 grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2">
+                                    {eegSeries.map((s) => (
+                                        <EEGLineChart key={s.column} series={s} />
                                     ))}
                                 </div>
+                                {/* {eegSeries.length > 3 && (
+                                    <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 mt-4">
+                                        {eegSeries.slice(3).map((s) => (
+                                            <EEGLineChart key={s.column} series={s} />
+                                        ))}
+                                    </div>
+                                )} */}
                             </div>
                         )}
         
@@ -358,6 +360,7 @@ return (
                 setSelectedFile(null);
                 setAnalysisResult(null);
                 setEegSeries([]);
+                setSeizureDetected(null);
             }}
             className="mt-8"
             >
