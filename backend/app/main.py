@@ -9,6 +9,7 @@ from app.core.config import settings as app_settings
 from app.services.mqtt_client import MQTTClient
 from app.services.analysis_service import run_analysis, extract_eeg_line_series
 import tempfile, shutil, os
+from fastapi.staticfiles import StaticFiles
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,14 +37,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# CORS for local frontend
+# Add CORS middleware to allow WebSocket connections from frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_origins=["*"],  # Next.js dev server
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="../public"), name="static")
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
