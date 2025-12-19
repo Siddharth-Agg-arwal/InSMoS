@@ -4,8 +4,17 @@ import { useState } from "react";
 import { CalendarPlus2 } from "lucide-react";
 import { AppointmentForm } from "@/components/appointment-form";
 
-export default function AddAppointmentsButton() {
+interface AddAppointmentsButtonProps {
+    onAppointmentCreated?: () => void;
+}
+
+export default function AddAppointmentsButton({ onAppointmentCreated }: AddAppointmentsButtonProps) {
     const [open, setOpen] = useState(false);
+
+    function handleConfirm() {
+        setOpen(false);
+        if (onAppointmentCreated) onAppointmentCreated();
+    }
 
     return (
         <>
@@ -21,7 +30,7 @@ export default function AddAppointmentsButton() {
                     <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-4">
                         <AppointmentForm
                             onCancel={() => setOpen(false)}
-                            onConfirm={() => setOpen(false)}
+                            onConfirm={handleConfirm}
                         />
                     </div>
                 </div>
