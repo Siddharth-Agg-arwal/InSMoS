@@ -1,70 +1,79 @@
-    import {
+"use client"
+
+import { useEffect, useState } from "react"
+import {
     Table,
     TableBody,
-    TableCaption,
     TableCell,
-    TableFooter,
     TableHead,
     TableHeader,
     TableRow,
-    } from "@/components/ui/table"
+} from "@/components/ui/table"
+import { Loader2 } from "lucide-react"
 
-    const invoices = [
-    {
-        invoice: "Sid",
-        paymentStatus: "Paid",
-        totalAmount: "6",
-        paymentMethod: "Credit Card",
-    },
-    {
-        invoice: "John",
-        paymentStatus: "Pending",
-        totalAmount: "5",
-        paymentMethod: "PayPal",
-    },
-    {
-        invoice: "Josh",
-        paymentStatus: "Unpaid",
-        totalAmount: "2",
-        paymentMethod: "Bank Transfer",
-    },
-    {
-        invoice: "Tyler",
-        paymentStatus: "Paid",
-        totalAmount: "1",
-        paymentMethod: "Credit Card",
-    },
-    
-    ]
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000';
 
-    export function HeighestSeizures() {
+interface TopPatient {
+    patient_id: number;
+    name: string;
+    count: number;
+}
+
+export function HeighestSeizures() {
+    const [patients, setPatients] = useState<TopPatient[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        async function fetchData() {
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/sessions/top-patients?limit=4`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setPatients(data);
+                }
+            } catch (error) {
+                console.error("Error fetching top seizure patients:", error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchData();
+        const interval = setInterval(fetchData, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
     return (
         <Table>
-        {/* <TableCaption>A list of your recent invoices.</TableCaption> */}
         <TableHeader>
             <TableRow>
             <TableHead className="w-[100px]">Name</TableHead>
-            {/* <TableHead>Status</TableHead> */}
-            {/* <TableHead>Method</TableHead> */}
             <TableHead className="text-right">Count</TableHead>
             </TableRow>
         </TableHeader>
         <TableBody>
-            {invoices.map((invoice) => (
-            <TableRow key={invoice.invoice}>
-                <TableCell className="font-medium">{invoice.invoice}</TableCell>
-                {/* <TableCell>{invoice.paymentStatus}</TableCell> */}
-                {/* <TableCell>{invoice.paymentMethod}</TableCell> */}
-                <TableCell className="text-right">{invoice.totalAmount}</TableCell>
-            </TableRow>
-            ))}
+            {patients.length === 0 ? (
+                <TableRow>
+                    <TableCell colSpan={2} className="text-center text-gray-400">
+                        No data available
+                    </TableCell>
+                </TableRow>
+            ) : (
+                patients.map((patient) => (
+                    <TableRow key={patient.patient_id}>
+                        <TableCell className="font-medium">{patient.name}</TableCell>
+                        <TableCell className="text-right">{patient.count}</TableCell>
+                    </TableRow>
+                ))
+            )}
         </TableBody>
-        {/* <TableFooter>
-            <TableRow>
-            <TableCell colSpan={3}>Total</TableCell>
-            <TableCell className="text-right">$2,500.00</TableCell>
-            </TableRow>
-        </TableFooter> */}
         </Table>
     )
-    }
+}

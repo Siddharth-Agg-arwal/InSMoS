@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { TrendingUp } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis } from "recharts"
 
@@ -20,23 +21,35 @@ ChartTooltipContent,
 
 export const description = "A bar chart with a label"
 
-const chartData = [
-{ month: "January", desktop: 186 },
-{ month: "February", desktop: 305 },
-{ month: "March", desktop: 237 },
-{ month: "April", desktop: 73 },
-{ month: "May", desktop: 209 },
-{ month: "June", desktop: 214 },
-]
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000';
 
 const chartConfig = {
-desktop: {
-    label: "Desktop",
+seizures: {
+    label: "Seizures",
     color: "var(--chart-1)",
 },
 } satisfies ChartConfig
 
 export function SeizureFrequencyBarChart() {
+    const [chartData, setChartData] = useState<{ month: string; seizures: number }[]>([]);
+
+    useEffect(() => {
+        async function fetchData() {
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/sessions/frequency/monthly?months=6`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setChartData(data);
+                }
+            } catch (error) {
+                console.error("Error fetching seizure frequency:", error);
+            }
+        }
+        fetchData();
+        const interval = setInterval(fetchData, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
 return (
     // <Card>
     // <CardHeader>
@@ -64,7 +77,7 @@ return (
             cursor={false}
             content={<ChartTooltipContent hideLabel />}
             />
-            <Bar dataKey="desktop" fill="#D6D7F5" radius={8}>
+            <Bar dataKey="seizures" fill="#D6D7F5" radius={8}>
             <LabelList
                 position="top"
                 offset={12}
