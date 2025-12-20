@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import paho.mqtt.client as mqtt
 from sqlalchemy.orm import Session
@@ -22,6 +23,8 @@ class MQTTClient:
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
+        self.loop = None
+        self.executor = ThreadPoolExecutor(max_workers=1)
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
@@ -31,31 +34,38 @@ class MQTTClient:
             logger.error(f"Failed to connect, return code {rc}\n")
 
     def on_message(self, client, userdata, msg):
-        logger.info(f"Received message from topic {msg.topic}: {msg.payload.decode()}")
         try:
             eeg_data_in = schemas.EEGDataCreate(**json.loads(msg.payload.decode()))
-            crud.eeg_data.create(db=self.db, obj_in=eeg_data_in)
-            logger.info(f"Stored EEG data: {eeg_data_in}")
 
             # Send live data to the specific patient's websocket
             patient_id = eeg_data_in.patient_id
             eeg_data_dict = eeg_data_in.model_dump()
             eeg_data_dict['timestamp'] = eeg_data_dict['timestamp'].isoformat()
-            asyncio.run(manager.send_to_patient(eeg_data_dict, patient_id))
-
-            # if detect_seizure(eeg_data_in.channel_data):
-            #     asyncio.run(
-            #         manager.broadcast_alert(
-            #             f"Seizure Alert for patient {eeg_data_in.patient_id}"
-            #         )
-            #     )
+            
+            # Schedule the coroutine in the existing event loop without blocking
+            if self.loop and not self.loop.is_closed():
+                asyncio.run_coroutine_threadsafe(
+                    manager.send_to_patient(eeg_data_dict, patient_id),
+                    self.loop
+                )
 
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
     def start(self):
+        # Get the running event loop
+        try:
+            self.loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+        
         self.client.connect(self.host, self.port)
         self.client.loop_start()
+        logger.info(f"MQTT Client started and subscribed to {self.topic}")
 
     def stop(self):
         self.client.loop_stop()
+        self.client.disconnect()
+        self.executor.shutdown(wait=True)
+        logger.info("MQTT Client stopped")

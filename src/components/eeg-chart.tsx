@@ -13,18 +13,41 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "@/components/ui/chart"
+import { useWebSocket } from "@/hooks/use-websocket"
+import { Activity } from "lucide-react"
 
-// Simulated EEG data (replace with live data as needed)
-const eegData = Array.from({ length: 60 }, (_, i) => ({
-	t: i,
-	value: Math.sin(i / 3) + Math.random() * 0.5,
-}))
+interface EEGChartProps {
+	patientId: number;
+}
 
-export function EEGChart() {
+export function EEGChart({ patientId }: EEGChartProps) {
+	const { data, isConnected, error } = useWebSocket(patientId, true);
+	
+	// Use useMemo to avoid infinite re-renders
+	const chartData = React.useMemo(() => {
+		const fiveSecondsAgo = Date.now() - (5 * 1000);
+		return data
+			.filter(d => new Date(d.timestamp).getTime() > fiveSecondsAgo)
+			.map(d => ({
+				t: new Date(d.timestamp).getTime(),
+				value: d.channel_data && d.channel_data.length > 0 ? d.channel_data[0] : 0
+			}));
+	}, [data]);
+
 	return (
 		<Card className="bg-white mb-6">
 			<CardHeader>
-				<CardTitle className="text-green-700">EEG Live</CardTitle>
+				<div className="flex items-center justify-between">
+					<CardTitle className="text-green-700 flex items-center gap-2">
+						EEG Live
+						{isConnected && (
+							<Activity className="h-4 w-4 text-green-500 animate-pulse" />
+						)}
+					</CardTitle>
+					<div className="text-xs text-gray-500">
+						{isConnected ? "Connected" : error ? "Disconnected" : "Connecting..."}
+					</div>
+				</div>
 			</CardHeader>
 			<CardContent>
 				<ChartContainer className="h-[280px] w-full" config={{}}>
@@ -32,20 +55,25 @@ export function EEGChart() {
 						<div className="h-full w-full">
 							<ResponsiveContainer width="100%" height={260}>
 								<LineChart
-									data={eegData}
+									data={chartData}
 									margin={{ left: 12, right: 12, top: 10, bottom: 10 }}
 								>
 									<CartesianGrid vertical={false} stroke="#e5e7eb" />
 									<XAxis
 										dataKey="t"
 										tick={{ fill: "#374151", fontSize: 12 }}
-										label={{ value: "Time (s)", fill: "#374151", fontSize: 12, position: "insideBottom", offset: -5 }}
-										tickLine={false}
-										axisLine={{ stroke: "#e5e7eb" }}
-										interval={9}
+									label={{ value: "Time", fill: "#374151", fontSize: 12, position: "insideBottom", offset: -5 }}
+									tickLine={false}
+									axisLine={{ stroke: "#e5e7eb" }}
+									type="number"
+									domain={['dataMin', 'dataMax']}
+									tickFormatter={(value) => {
+										const date = new Date(value);
+										return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+									}}
 									/>
 									<YAxis
-										domain={[-2, 2]}
+										domain={['auto', 'auto']}
 										tick={{ fill: "#374151", fontSize: 12 }}
 										label={{ value: "μV", angle: -90, fill: "#374151", fontSize: 12, position: "insideLeft" }}
 										axisLine={{ stroke: "#e5e7eb" }}
@@ -55,15 +83,18 @@ export function EEGChart() {
 									<ChartTooltip
 										content={
 											<ChartTooltipContent
-												className="w-[120px]"
+												className="w-[150px]"
 												nameKey="value"
-												labelFormatter={(value) => `t: ${value}s`}
+												labelFormatter={(value) => {
+													const date = new Date(value);
+													return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+												}}
 											/>
 										}
 									/>
 									<Line
 										dataKey="value"
-										type="monotone"
+										type="linear"
 										stroke="#22c55e"
 										strokeWidth={2}
 										dot={false}
@@ -72,7 +103,9 @@ export function EEGChart() {
 								</LineChart>
 							</ResponsiveContainer>
 						</div>
-						<div className="text-xs text-gray-500 mt-2">EEG: Electroencephalogram (μV vs Time)</div>
+						<div className="text-xs text-gray-500 mt-2">
+							EEG: Electroencephalogram (μV vs Time) | {chartData.length} data points
+						</div>
 					</>
 				</ChartContainer>
 			</CardContent>

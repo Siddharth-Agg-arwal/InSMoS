@@ -1,7 +1,11 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { X, BrainCircuit, ActivitySquare, Syringe, User, CalendarCheck2, ShieldCheck, Droplets, Pill, Users, Phone } from "lucide-react";
 import { EEGChart } from "./eeg-chart";
-import { EMGChart } from "./emg-chart";
+import { LiveAnalysis } from "./live-analysis";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { useMemo } from "react";
 
 export function PatientPage({
   patientId,
@@ -13,6 +17,15 @@ export function PatientPage({
   patients: any[];
 }) {
   const patient = patients.find((p) => p.id === patientId);
+  const { data: wsData } = useWebSocket(patientId, true);
+  
+  // Use useMemo to calculate values only when wsData actually changes
+  const eegValues = useMemo(() => {
+    const fiveSecondsAgo = Date.now() - (5 * 1000);
+    return wsData
+      .filter(d => new Date(d.timestamp).getTime() > fiveSecondsAgo)
+      .flatMap(d => d.channel_data && d.channel_data.length > 0 ? [d.channel_data[0]] : []);
+  }, [wsData]);
 
   if (!patient) return null;
 
@@ -102,21 +115,22 @@ export function PatientPage({
             </div>
           </div>
         </div>
-        {/* Right section: EEG and EMG Charts with scroll and icons */}
+        {/* Right section: EEG Chart and Live Analysis with scroll */}
         <div className="flex-1 p-10 flex flex-col gap-8 items-center justify-start bg-gray-50 overflow-y-auto min-h-0">
           <div className="w-full">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-4">
               <BrainCircuit className="h-6 w-6 text-green-400" />
-              <span className="text-lg font-semibold text-green-700">EEG Live Chart</span>
+              <span className="text-lg font-semibold text-green-700">Live EEG Monitoring</span>
             </div>
-            <EEGChart />
+            <EEGChart patientId={patientId} />
           </div>
+          
           <div className="w-full">
-            <div className="flex items-center gap-2 mb-2">
-              <ActivitySquare className="h-6 w-6 text-blue-400" />
-              <span className="text-lg font-semibold text-blue-700">EMG Live Chart</span>
+            <div className="flex items-center gap-2 mb-4">
+              <ActivitySquare className="h-6 w-6 text-purple-400" />
+              <span className="text-lg font-semibold text-purple-700">Real-Time Analysis</span>
             </div>
-            <EMGChart />
+            <LiveAnalysis eegData={eegValues} patientStatus={status} />
           </div>
         </div>
       </div>

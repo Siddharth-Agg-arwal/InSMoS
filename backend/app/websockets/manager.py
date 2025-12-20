@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, List
 from fastapi import WebSocket
 
@@ -19,10 +20,15 @@ class ConnectionManager:
             if not self.patient_connections[patient_id]:
                 del self.patient_connections[patient_id]
 
-    async def send_to_patient(self, message: str, patient_id: int):
+    async def send_to_patient(self, message: dict, patient_id: int):
         if patient_id in self.patient_connections:
-            for connection in self.patient_connections[patient_id]:
-                await connection.send_json(message)
+            # Send to all connections concurrently
+            tasks = [
+                connection.send_json(message)
+                for connection in self.patient_connections[patient_id]
+            ]
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
 
     async def connect_alert(self, websocket: WebSocket):
         await websocket.accept()
