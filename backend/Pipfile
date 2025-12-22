@@ -17,5 +17,7 @@ paho-mqtt = "*"
 pandas = "*"
 numpy = "*"
 python-multipart = "*"
+openpyxl = "*"
+scikit-learn = "*"
 
 [dev-packages]

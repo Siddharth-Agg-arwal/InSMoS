@@ -7,9 +7,11 @@ import { AlertCircle, Activity, TrendingUp, Zap, AlertTriangle, CheckCircle } fr
 interface LiveAnalysisProps {
   eegData: number[];
   patientStatus: string;
+  seizureDetected?: boolean;
+  mlDetection?: boolean;
 }
 
-export function LiveAnalysis({ eegData, patientStatus }: LiveAnalysisProps) {
+export function LiveAnalysis({ eegData, patientStatus, seizureDetected: seizureDetectedProp, mlDetection }: LiveAnalysisProps) {
   // Calculate statistics from EEG data
   const calculateStats = () => {
     if (eegData.length === 0) {
@@ -47,7 +49,8 @@ export function LiveAnalysis({ eegData, patientStatus }: LiveAnalysisProps) {
     return hasSpike || highVariance;
   };
 
-  const seizureDetected = detectSeizure();
+  // Use ML-based detection from backend if available, otherwise fall back to frontend detection
+  const seizureDetected = seizureDetectedProp !== undefined ? seizureDetectedProp : (mlDetection !== undefined ? mlDetection : detectSeizure());
   const riskLevel = seizureDetected ? "Critical" : stats.stdDev > 30 ? "Moderate" : "Good";
 
   return (
@@ -100,122 +103,92 @@ export function LiveAnalysis({ eegData, patientStatus }: LiveAnalysisProps) {
               : "text-green-600"
           }>
             {seizureDetected 
-              ? "Abnormal EEG patterns detected. Immediate attention required." 
-              : riskLevel === "Moderate"
-              ? "Elevated EEG activity detected. Continue monitoring."
-              : "EEG patterns are within normal range."}
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
-      {/* Live Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Real-Time EEG Statistics
-          </CardTitle>
-          <CardDescription>
-            Live analysis of EEG signal characteristics
+              ? "Immediate attention required! Seizure activity detected by ML model." 
+              : riskLevel === "Moderate" 
+              ? "Elevated brain activity detected. Continue monitoring." 
+              : "Brain activity within normal parameters."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-gray-600">Mean Voltage</span>
+          <div className="space-y-4">
+            {/* Real-time Metrics */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500">Mean Voltage</p>
+                <p className="text-2xl font-bold">{stats.mean.toFixed(2)} μV</p>
               </div>
-              <p className="text-2xl font-bold text-blue-600">{stats.mean.toFixed(2)} μV</p>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500">Std Deviation</p>
+                <p className="text-2xl font-bold">{stats.stdDev.toFixed(2)} μV</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500">Max Amplitude</p>
+                <p className="text-2xl font-bold">{stats.max.toFixed(2)} μV</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500">Min Amplitude</p>
+                <p className="text-2xl font-bold">{stats.min.toFixed(2)} μV</p>
+              </div>
             </div>
 
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Zap className="h-4 w-4 text-purple-600" />
-                <span className="text-sm font-medium text-gray-600">Std Deviation</span>
+            {/* Detection Info */}
+            {/* Seizure Alert Banner */}
+            {seizureDetected && (
+              <div className="mt-4 p-4 bg-red-100 border-2 border-red-500 rounded-lg animate-pulse">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  <p className="text-sm font-bold text-red-900">SEIZURE DETECTED</p>
+                </div>
+                <p className="text-xs text-red-700 mt-1">
+                  Abnormal neural activity detected. Notify medical staff immediately.
+                </p>
               </div>
-              <p className="text-2xl font-bold text-purple-600">{stats.stdDev.toFixed(2)} μV</p>
-            </div>
-
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium text-gray-600">Variance</span>
-              </div>
-              <p className="text-2xl font-bold text-green-600">{stats.variance.toFixed(2)}</p>
-            </div>
-
-            <div className="bg-red-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <span className="text-sm font-medium text-gray-600">Max Voltage</span>
-              </div>
-              <p className="text-2xl font-bold text-red-600">{stats.max.toFixed(2)} μV</p>
-            </div>
-
-            <div className="bg-indigo-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="h-4 w-4 text-indigo-600" />
-                <span className="text-sm font-medium text-gray-600">Min Voltage</span>
-              </div>
-              <p className="text-2xl font-bold text-indigo-600">{stats.min.toFixed(2)} μV</p>
-            </div>
-
-            <div className="bg-orange-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Activity className="h-4 w-4 text-orange-600" />
-                <span className="text-sm font-medium text-gray-600">Data Points</span>
-              </div>
-              <p className="text-2xl font-bold text-orange-600">{eegData.length}</p>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Signal Quality */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            Signal Quality Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">Signal Stability</span>
-                <span className="text-sm text-gray-600">
-                  {stats.stdDev < 20 ? "Excellent" : stats.stdDev < 40 ? "Good" : "Poor"}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full ${
-                    stats.stdDev < 20 ? "bg-green-500" : stats.stdDev < 40 ? "bg-yellow-500" : "bg-red-500"
-                  }`}
-                  style={{ width: `${Math.min(100, (100 - stats.stdDev))}%` }}
-                />
-              </div>
-            </div>
+      {/* Additional Analysis Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-600" />
+              Variance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{stats.variance.toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">Signal variability</p>
+          </CardContent>
+        </Card>
 
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">Data Collection Rate</span>
-                <span className="text-sm text-gray-600">
-                  {eegData.length > 50 ? "Optimal" : "Collecting..."}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-500 h-2 rounded-full"
-                  style={{ width: `${Math.min(100, (eegData.length / 60) * 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-600" />
+              Range
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{(stats.max - stats.min).toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mt-1">Peak-to-peak amplitude</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Zap className="h-4 w-4 text-yellow-600" />
+              Sample Count
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{eegData.length}</p>
+            <p className="text-xs text-gray-500 mt-1">Active data points</p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

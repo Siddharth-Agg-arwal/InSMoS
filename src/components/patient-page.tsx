@@ -27,6 +27,18 @@ export function PatientPage({
       .flatMap(d => d.channel_data && d.channel_data.length > 0 ? [d.channel_data[0]] : []);
   }, [wsData]);
 
+  // Get the most recent ML seizure detection result
+  const latestSeizureDetection = useMemo(() => {
+    if (wsData.length === 0) return undefined;
+    const recent = wsData[wsData.length - 1];
+    return recent.seizure_detected;
+  }, [wsData]);
+
+  // Check if ML detection is available
+  const hasMLDetection = useMemo(() => {
+    return wsData.some(d => d.seizure_detected !== undefined);
+  }, [wsData]);
+
   if (!patient) return null;
 
   // Example fallback values for demonstration
@@ -130,7 +142,12 @@ export function PatientPage({
               <ActivitySquare className="h-6 w-6 text-purple-400" />
               <span className="text-lg font-semibold text-purple-700">Real-Time Analysis</span>
             </div>
-            <LiveAnalysis eegData={eegValues} patientStatus={status} />
+            <LiveAnalysis 
+              eegData={eegValues} 
+              patientStatus={status}
+              seizureDetected={latestSeizureDetection}
+              mlDetection={hasMLDetection ? latestSeizureDetection : undefined}
+            />
           </div>
         </div>
       </div>

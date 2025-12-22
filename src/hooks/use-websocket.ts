@@ -6,6 +6,8 @@ interface EEGDataMessage {
   patient_id: number;
   timestamp: string;
   channel_data: number[];
+  seizure_detected?: boolean;
+  voltage?: number[];
 }
 
 export function useWebSocket(patientId: number | null, enabled: boolean = true) {

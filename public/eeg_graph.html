@@ -16,11 +16,33 @@
 
         const ctx = document.getElementById('eegChart').getContext('2d');
         
+        // Buffer to store raw values for normalization calculation
+        const rawValueBuffer = [];
+        const BUFFER_SIZE = 100; // Keep last 100 values for normalization
+        
+        // Function to normalize a value using z-score
+        function normalizeValue(value) {
+            if (rawValueBuffer.length === 0) return 50;
+            
+            // Calculate mean
+            const mean = rawValueBuffer.reduce((sum, val) => sum + val, 0) / rawValueBuffer.length;
+            
+            // Calculate standard deviation
+            const variance = rawValueBuffer.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / rawValueBuffer.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // Avoid division by zero
+            if (stdDev === 0) return 50;
+            
+            // Apply z-score normalization and scale to 0-100 range
+            return ((value - mean) / stdDev) * 20 + 50;
+        }
+        
         const chart = new Chart(ctx, {
             type: 'line',
             data: {
                 datasets: [{
-                    label: 'EEG Data',
+                    label: 'Normalized EEG Data',
                     borderColor: 'rgb(255, 99, 132)',
                     backgroundColor: 'rgba(255, 99, 132, 0.5)',
                     data: [],
@@ -39,8 +61,10 @@
                     y: {
                         title: {
                             display: true,
-                            text: 'Voltage'
-                        }
+                            text: 'Normalized Voltage'
+                        },
+                        min: 0,
+                        max: 100
                     }
                 },
                 animation: false
@@ -52,9 +76,19 @@
             console.log(data);
             if (data.channel_data) {
                 const now = Date.now();
+                const rawValue = data.channel_data[0];
+                
+                // Add to buffer for normalization
+                rawValueBuffer.push(rawValue);
+                if (rawValueBuffer.length > BUFFER_SIZE) {
+                    rawValueBuffer.shift(); // Remove oldest value
+                }
+                
+                // Normalize and add to chart
+                const normalizedValue = normalizeValue(rawValue);
                 chart.data.datasets[0].data.push({
                     x: now,
-                    y: data.channel_data[0]
+                    y: normalizedValue
                 });
                 chart.update();
             }

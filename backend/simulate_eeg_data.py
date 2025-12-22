@@ -16,6 +16,6 @@ try:
         }
         client.publish("eeg/data", json.dumps(data))
         print(f"Published: {data['timestamp']}")
-        time.sleep(1/10)  # ~0.0039 seconds between readings
+        time.sleep(0.5)  # ~0.0039 seconds between readings
 except KeyboardInterrupt:
     client.disconnect()

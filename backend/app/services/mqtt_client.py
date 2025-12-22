@@ -37,10 +37,14 @@ class MQTTClient:
         try:
             eeg_data_in = schemas.EEGDataCreate(**json.loads(msg.payload.decode()))
 
+            # Perform seizure detection on the incoming data
+            is_seizure = detect_seizure(eeg_data_in.channel_data)
+            
             # Send live data to the specific patient's websocket
             patient_id = eeg_data_in.patient_id
             eeg_data_dict = eeg_data_in.model_dump()
             eeg_data_dict['timestamp'] = eeg_data_dict['timestamp'].isoformat()
+            eeg_data_dict['seizure_detected'] = is_seizure  # Add seizure detection result
             
             # Schedule the coroutine in the existing event loop without blocking
             if self.loop and not self.loop.is_closed():
