@@ -19,15 +19,90 @@ export function useWebSocket(patientId: number | null, enabled: boolean = true) 
   const reconnectAttemptsRef = useRef(0);
   const bufferRef = useRef<EEGDataMessage[]>([]);
   const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const seizureDetectedRef = useRef(false);
+  const currentFrequencyRef = useRef(2000); // Track current frequency
+  const lastUpdateRef = useRef(Date.now()); // Track last update time
+  const isProcessingRef = useRef(false); // Prevent concurrent processing
 
   useEffect(() => {
     if (!enabled || patientId === null) {
       return;
     }
 
-    const maxReconnectAttempts = 5;
-    const reconnectDelay = 3000; // 3 seconds
-    const updateFrequency = 50; // Update UI every 50ms (20 FPS) instead of 256 times per second
+    const maxReconnectAttempts = 10;
+    const reconnectDelay = 2000; // 2 seconds
+    const normalUpdateFrequency = 2000; // 2 seconds when normal
+    const alertUpdateFrequency = 1000; // 1 second when seizure detected
+
+    const processBuffer = () => {
+      // Prevent concurrent processing
+      if (isProcessingRef.current) {
+        console.log('⏸️ Already processing, skipping...');
+        return;
+      }
+      
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastUpdateRef.current;
+      
+      // Prevent updates that are too frequent
+      if (timeSinceLastUpdate < currentFrequencyRef.current - 100) {
+        console.log('⏱️ Too soon since last update, skipping...');
+        return;
+      }
+      
+      console.log('🔄 Processing buffer. Buffer size:', bufferRef.current.length);
+      
+      if (bufferRef.current.length > 0) {
+        isProcessingRef.current = true;
+        lastUpdateRef.current = now;
+        
+        try {
+          setData((prev) => {
+            // Take small batch to avoid overwhelming the UI
+            const batchSize = seizureDetectedRef.current ? 5 : 3;
+            const dataToAdd = bufferRef.current.slice(0, batchSize);
+            bufferRef.current = bufferRef.current.slice(batchSize);
+            
+            console.log('➕ Adding to data:', dataToAdd.length, 'items');
+            console.log('📅 Sample timestamp:', dataToAdd[0]?.timestamp);
+            
+            const combined = [...prev, ...dataToAdd];
+            
+            // Keep last 100 items instead of time-based filtering to avoid timezone issues
+            const sorted = combined.sort((a, b) => {
+              return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+            });
+            const filtered = sorted.slice(0, 100);
+            
+            console.log('📊 Total data points:', filtered.length, '(from', combined.length, 'combined)');
+            
+            return filtered;
+          });
+        } finally {
+          isProcessingRef.current = false;
+        }
+      } else {
+        console.log('📭 Buffer empty, nothing to process');
+      }
+      
+      // Check if frequency needs to change
+      const desiredFrequency = seizureDetectedRef.current ? alertUpdateFrequency : normalUpdateFrequency;
+      if (desiredFrequency !== currentFrequencyRef.current) {
+        currentFrequencyRef.current = desiredFrequency;
+        console.log('⚡ Changing update frequency to:', desiredFrequency);
+        startUpdateInterval();
+      }
+    };
+
+    const startUpdateInterval = () => {
+      // Clear existing interval
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+      }
+      
+      // Start new interval with current frequency
+      updateIntervalRef.current = setInterval(processBuffer, currentFrequencyRef.current);
+    };
 
     const connect = () => {
       // Updated URL to match backend router: /api/v1/ws/live_eeg/{patient_id}
@@ -40,46 +115,54 @@ export function useWebSocket(patientId: number | null, enabled: boolean = true) 
 
         ws.onopen = () => {
           console.log(`✅ WebSocket connected for patient ${patientId}`);
+          console.log(`📡 WebSocket URL: ws://localhost:8000/api/v1/ws/live_eeg/${patientId}`);
           setIsConnected(true);
           setError(null);
           reconnectAttemptsRef.current = 0;
 
           // Start periodic UI updates
-          updateIntervalRef.current = setInterval(() => {
-            if (bufferRef.current.length > 0) {
-              setData((prev) => {
-                const combined = [...prev, ...bufferRef.current];
-                bufferRef.current = []; // Clear buffer
-                
-                // Keep only last 5 seconds of data
-                const fiveSecondsAgo = Date.now() - (5 * 1000);
-                return combined.filter(d => {
-                  const msgTime = new Date(d.timestamp).getTime();
-                  return msgTime > fiveSecondsAgo;
-                });
-              });
-            }
-          }, updateFrequency);
+          startUpdateInterval();
         };
 
         ws.onmessage = (event) => {
+          console.log('📩 RAW WebSocket message received:', event.data);
           try {
             const message: EEGDataMessage = JSON.parse(event.data);
-            // Buffer messages instead of updating state immediately
-            bufferRef.current.push(message);
+            console.log('✅ Parsed message:', message);
+            
+            // Update seizure detection status
+            if (message.seizure_detected !== undefined) {
+              seizureDetectedRef.current = message.seizure_detected;
+              console.log('🚨 Seizure status:', message.seizure_detected);
+            }
+            
+            // Limit buffer size to prevent memory issues
+            const maxBufferSize = 50;
+            if (bufferRef.current.length < maxBufferSize) {
+              bufferRef.current.push(message);
+              console.log('📦 Added to buffer. Buffer size:', bufferRef.current.length);
+            } else {
+              // If buffer is getting full, skip some messages to prevent overflow
+              if (bufferRef.current.length % 2 === 0) {
+                bufferRef.current.shift();
+                bufferRef.current.push(message);
+                console.log('♻️ Buffer full, replaced oldest. Buffer size:', bufferRef.current.length);
+              } else {
+                console.log('⚠️ Buffer full, message skipped');
+              }
+            }
           } catch (err) {
             console.error("❌ Error parsing WebSocket message:", err);
           }
         };
 
         ws.onerror = (event) => {
-          console.error("❌ WebSocket error:", event);
-          setError("WebSocket connection error - Check if backend is running");
+          // Suppress error logging to console, just update state
+          setError("WebSocket connection issue - Reconnecting...");
           setIsConnected(false);
         };
 
         ws.onclose = (event) => {
-          console.log(`🔌 WebSocket closed (Code: ${event.code}, Reason: ${event.reason || 'No reason'})`);
           setIsConnected(false);
 
           // Clear update interval
@@ -91,15 +174,13 @@ export function useWebSocket(patientId: number | null, enabled: boolean = true) 
           // Attempt to reconnect if not manually closed
           if (event.code !== 1000 && reconnectAttemptsRef.current < maxReconnectAttempts) {
             reconnectAttemptsRef.current++;
-            console.log(`🔄 Reconnecting... (Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
-            setError(`Reconnecting... (Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+            setError(`Reconnecting... (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
             
             reconnectTimeoutRef.current = setTimeout(() => {
               connect();
             }, reconnectDelay);
           } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-            setError("Failed to connect after multiple attempts. Check if backend and MQTT are running.");
-            console.error("❌ Max reconnection attempts reached");
+            setError("Connection lost. Please refresh the page.");
           }
         };
 

@@ -41,6 +41,20 @@ export function EEGChart({ patientId }: EEGChartProps) {
 	const { data, isConnected, error } = useWebSocket(patientId, true);
 	const [numChannels, setNumChannels] = React.useState(1);
 	
+	// Console log for debugging
+	React.useEffect(() => {
+		console.log('📊 EEG Chart - Connection Status:', { 
+			isConnected, 
+			error, 
+			dataLength: data.length,
+			patientId 
+		});
+		if (data.length > 0) {
+			console.log('📊 EEG Chart - Latest Data:', data[data.length - 1]);
+			console.log('📊 EEG Chart - All Data:', data);
+		}
+	}, [data, isConnected, error, patientId]);
+	
 	// Check if any recent data indicates seizure
 	const hasSeizure = React.useMemo(() => {
 		if (data.length === 0) return false;
@@ -50,19 +64,19 @@ export function EEGChart({ patientId }: EEGChartProps) {
 	
 	// Use useMemo to avoid infinite re-renders
 	const chartData = React.useMemo(() => {
-		const fiveSecondsAgo = Date.now() - (5 * 1000);
-		const rawData = data
-			.filter(d => new Date(d.timestamp).getTime() > fiveSecondsAgo)
-			.map(d => {
-				const dataPoint: any = { t: new Date(d.timestamp).getTime() };
-				
-				// Extract data for each channel based on numChannels
-				for (let i = 0; i < numChannels; i++) {
-					dataPoint[`ch${i}`] = d.channel_data && d.channel_data.length > i ? d.channel_data[i] : 0;
-				}
-				
-				return dataPoint;
-			});
+		// Just take the last 50 data points, don't filter by time
+		const recentData = data.slice(-50);
+		
+		const rawData = recentData.map(d => {
+			const dataPoint: any = { t: new Date(d.timestamp).getTime() };
+			
+			// Extract data for each channel based on numChannels
+			for (let i = 0; i < numChannels; i++) {
+				dataPoint[`ch${i}`] = d.channel_data && d.channel_data.length > i ? d.channel_data[i] : 0;
+			}
+			
+			return dataPoint;
+		});
 		
 		// Normalize each channel separately
 		if (rawData.length === 0) return rawData;
@@ -88,6 +102,15 @@ export function EEGChart({ patientId }: EEGChartProps) {
 			return normalized;
 		});
 	}, [data, numChannels]);
+	
+	// Log chart data
+	React.useEffect(() => {
+		console.log('📈 Chart Data:', { 
+			chartDataLength: chartData.length, 
+			numChannels,
+			sample: chartData[0] 
+		});
+	}, [chartData, numChannels]);
 
 	return (
 		<Card className={`bg-white mb-6 transition-all ${hasSeizure ? 'border-2 border-red-500 shadow-lg shadow-red-200' : ''}`}>
@@ -128,90 +151,88 @@ export function EEGChart({ patientId }: EEGChartProps) {
 			</CardHeader>
 			<CardContent>
 				<ChartContainer className="h-[280px] w-full" config={{}}>
-					<>
-						<div className="h-full w-full">
-							<ResponsiveContainer width="100%" height={260}>
-								<LineChart
-									data={chartData}
-									margin={{ left: 12, right: 12, top: 10, bottom: 10 }}
-								>
-									<CartesianGrid vertical={false} stroke="#e5e7eb" />
-									<XAxis
-										dataKey="t"
-										tick={{ fill: "#374151", fontSize: 12 }}
-										label={{ value: "Time", fill: "#374151", fontSize: 12, position: "insideBottom", offset: -5 }}
-										tickLine={false}
-										axisLine={{ stroke: "#e5e7eb" }}
-										type="number"
-										domain={['dataMin', 'dataMax']}
-										tickFormatter={(value) => {
-											const date = new Date(value);
-											return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-										}}
-									/>
-									<YAxis
-										domain={[0, 100]}
-										tick={{ fill: "#374151", fontSize: 12 }}
-										label={{ value: "Voltage μV", angle: -90, fill: "#374151", fontSize: 12, position: "insideLeft" }}
-										axisLine={{ stroke: "#e5e7eb" }}
-										tickLine={false}
-										width={60}
-									/>
-									<ChartTooltip
-										content={({ active, payload }) => {
-											if (!active || !payload || payload.length === 0) return null;
-											
-											const dataPoint = payload[0].payload;
-											const timestamp = dataPoint.t;
-											const date = new Date(timestamp);
-											const timeStr = date.toLocaleTimeString('en-US', { 
-												hour: '2-digit', 
-												minute: '2-digit', 
-												second: '2-digit',
-												hour12: false 
-											});
-											
-											return (
-												<div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-													{/* <p className="text-xs text-gray-500 mb-2">{timeStr}</p> */}
-													<div className="space-y-1">
-														{payload.map((entry: any, index: number) => (
-															<div key={index} className="flex items-center justify-between gap-3">
-																<div className="flex items-center gap-2">
-																	<div 
-																		className="w-2 h-2 rounded-full" 
-																		style={{ backgroundColor: entry.stroke }}
-																	/>
-																	<span className="text-xs font-medium">{entry.name}</span>
-																</div>
-																<span className="text-xs font-bold">{entry.value?.toFixed(1)}μV</span>
+					<div className="h-full w-full">
+						<ResponsiveContainer width="100%" height={260}>
+							<LineChart
+								data={chartData}
+								margin={{ left: 12, right: 12, top: 10, bottom: 10 }}
+							>
+								<CartesianGrid vertical={false} stroke="#e5e7eb" />
+								<XAxis
+									dataKey="t"
+									tick={{ fill: "#374151", fontSize: 12 }}
+									label={{ value: "Time", fill: "#374151", fontSize: 12, position: "insideBottom", offset: -5 }}
+									tickLine={false}
+									axisLine={{ stroke: "#e5e7eb" }}
+									type="number"
+									domain={['dataMin', 'dataMax']}
+									tickFormatter={(value) => {
+										const date = new Date(value);
+										return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+									}}
+								/>
+								<YAxis
+									domain={[0, 100]}
+									tick={{ fill: "#374151", fontSize: 12 }}
+									label={{ value: "Normalized μV", angle: -90, fill: "#374151", fontSize: 12, position: "insideLeft" }}
+									axisLine={{ stroke: "#e5e7eb" }}
+									tickLine={false}
+									width={60}
+								/>
+								<ChartTooltip
+									content={({ active, payload }) => {
+										if (!active || !payload || payload.length === 0) return null;
+										
+										const dataPoint = payload[0].payload;
+										const timestamp = dataPoint.t;
+										const date = new Date(timestamp);
+										const timeStr = date.toLocaleTimeString('en-US', { 
+											hour: '2-digit', 
+											minute: '2-digit', 
+											second: '2-digit',
+											hour12: false 
+										});
+										
+										return (
+											<div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+												<p className="text-xs text-gray-500 mb-2">{timeStr}</p>
+												<div className="space-y-1">
+													{payload.map((entry: any, index: number) => (
+														<div key={index} className="flex items-center justify-between gap-3">
+															<div className="flex items-center gap-2">
+																<div 
+																	className="w-2 h-2 rounded-full" 
+																	style={{ backgroundColor: entry.stroke }}
+																/>
+																<span className="text-xs font-medium">{entry.name}</span>
 															</div>
-														))}
-													</div>
+															<span className="text-xs font-bold">{entry.value?.toFixed(1)}</span>
+														</div>
+													))}
 												</div>
-											);
-										}}
+											</div>
+										);
+									}}
+								/>
+								{/* Render a line for each channel */}
+								{Array.from({ length: numChannels }, (_, i) => (
+									<Line
+										key={`ch${i}`}
+										dataKey={`ch${i}`}
+										type="linear"
+										stroke={CHANNEL_COLORS[i]}
+										strokeWidth={2}
+										dot={false}
+										isAnimationActive={false}
+										name={`Channel ${i + 1}`}
 									/>
-									{/* Render a line for each channel */}
-									{Array.from({ length: numChannels }, (_, i) => (
-										<Line
-											key={`ch${i}`}
-											dataKey={`ch${i}`}
-											type="linear"
-											stroke={CHANNEL_COLORS[i]}
-											strokeWidth={2}
-											dot={false}
-											isAnimationActive={false}
-											name={`Channel ${i + 1}`}
-										/>
-									))}
-								</LineChart>
-							</ResponsiveContainer>
-						</div>
-						<div className="text-xs text-gray-500 mt-2">
-							EEG: Electroencephalogram (Normalized μV vs Time) | {chartData.length} data points | {numChannels} channel{numChannels > 1 ? 's' : ''}
-						</div>
-					</>
+								))}
+							</LineChart>
+						</ResponsiveContainer>
+					</div>
+					<div className="text-xs text-gray-500 mt-2">
+						EEG: Electroencephalogram (Normalized μV vs Time) | {chartData.length} data points | {numChannels} channel{numChannels > 1 ? 's' : ''}
+					</div>
 				</ChartContainer>
 			</CardContent>
 		</Card>

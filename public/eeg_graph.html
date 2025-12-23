@@ -6,105 +6,398 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+            margin: 0;
+        }
+        h1 {
+            color: #333;
+            margin: 0 0 20px 0;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        select {
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            cursor: pointer;
+        }
+        select:hover {
+            border-color: #999;
+        }
+        .status {
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .ml-detection {
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid;
+        }
+        .ml-detection.normal {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+        .ml-detection.seizure {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+            animation: pulse 1s infinite;
+        }
+        .seizure-alert {
+            background-color: #f8d7da;
+            border: 2px solid #dc3545;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            animation: pulse 1s infinite;
+            text-align: center;
+        }
+        .seizure-alert h2 {
+            margin: 0 0 10px 0;
+            color: #721c24;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .chart-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            position: relative;
+        }
+        canvas {
+            max-width: 100%;
+            height: 600px !important;
+        }
+        .stats {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
-    <h1>Live EEG Data for Patient 1</h1>
-    <canvas id="eegChart" width="1200" height="400"></canvas>
+    <h1>Live EEG Data - Patient 1</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="channelSelect">Channels: </label>
+            <select id="channelSelect" onchange="updateChannels()">
+                <option value="1">1 Channel</option>
+                <option value="2">2 Channels</option>
+                <option value="3">3 Channels</option>
+                <option value="4">4 Channels</option>
+                <option value="5">5 Channels</option>
+                <option value="4" selected>4 Channels</option>
+                <option value="5">5 Channels</option>
+                <option value="6">6 Channels</option>
+                <option value="7">7 Channels</option>
+                <option value="8">8 Channels</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <div id="mlDetection" class="ml-detection normal">
+                🤖 ML: Normal
+            </div>
+            <div id="statusIndicator" class="status disconnected">Disconnected</div>
+        </div>
+    </div>
+    
+    <div id="seizureAlert" style="display: none;" class="seizure-alert">
+        <h2>⚠️ SEIZURE DETECTED</h2>
+        <p>Abnormal neural activity detected by ML model! Immediate attention required.</p>
+    </div>
+    
+    <div class="chart-container">
+        <canvas id="eegChart"></canvas>
+        <div class="stats" id="statsDisplay">
+            Waiting for data...
+        </div>
+    </div>
+    
     <script>
         const patientId = 1;
-        const ws = new WebSocket(`ws://localhost:8000/api/v1/ws/live_eeg/${patientId}`);
+        let ws = null;
+        let numChannels = 4;
+        let seizureDetected = false;
+        let dataPointCount = 0;
+        
+        // Channel colors
+        const CHANNEL_COLORS = [
+            'rgb(34, 197, 94)',   // green
+            'rgb(59, 130, 246)',  // blue
+            'rgb(245, 158, 11)',  // amber
+            'rgb(239, 68, 68)',   // red
+            'rgb(139, 92, 246)',  // purple
+            'rgb(236, 72, 153)',  // pink
+            'rgb(6, 182, 212)',   // cyan
+            'rgb(249, 115, 22)',  // orange
+        ];
 
         const ctx = document.getElementById('eegChart').getContext('2d');
         
-        // Buffer to store raw values for normalization calculation
-        const rawValueBuffer = [];
-        const BUFFER_SIZE = 100; // Keep last 100 values for normalization
+        // Buffer to store raw values for normalization calculation (per channel)
+        const rawValueBuffers = Array(8).fill(null).map(() => []);
+        const BUFFER_SIZE = 50; // Keep last 50 values for normalization
+        const MAX_DATA_POINTS = 256; // ~5 seconds at 256Hz
         
-        // Function to normalize a value using z-score
-        function normalizeValue(value) {
-            if (rawValueBuffer.length === 0) return 50;
+        // Function to normalize a value using z-score for a specific channel
+        // Add vertical offset to stack channels
+        function normalizeValue(value, channelIndex) {
+            const buffer = rawValueBuffers[channelIndex];
+            if (buffer.length === 0) return 50 + (channelIndex * 12); // Stack with 12 unit spacing
             
             // Calculate mean
-            const mean = rawValueBuffer.reduce((sum, val) => sum + val, 0) / rawValueBuffer.length;
+            const mean = buffer.reduce((sum, val) => sum + val, 0) / buffer.length;
             
             // Calculate standard deviation
-            const variance = rawValueBuffer.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / rawValueBuffer.length;
+            const variance = buffer.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / buffer.length;
             const stdDev = Math.sqrt(variance);
             
             // Avoid division by zero
-            if (stdDev === 0) return 50;
+            if (stdDev === 0) return 50 + (channelIndex * 12);
             
-            // Apply z-score normalization and scale to 0-100 range
-            return ((value - mean) / stdDev) * 20 + 50;
+            // Apply z-score normalization, scale down for stacking, and add vertical offset
+            const normalized = ((value - mean) / stdDev) * 5; // Scale down to 5 instead of 20
+            return normalized + (channelIndex * 12); // Stack with offset
+        }
+        
+        // Create initial chart with stacked datasets
+        const datasets = [];
+        for (let i = 0; i < 8; i++) {
+            datasets.push({
+                label: `Ch${i + 1}`,
+                borderColor: CHANNEL_COLORS[i],
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                data: [],
+                pointRadius: 0,
+                fill: false,
+            });
         }
         
         const chart = new Chart(ctx, {
             type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Normalized EEG Data',
-                    borderColor: 'rgb(255, 99, 132)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                    data: [],
-                }]
-            },
+            data: { datasets: datasets },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 scales: {
                     x: {
                         type: 'realtime',
                         realtime: {
-                            duration: 20000,
-                            refresh: 1000,
-                            delay: 2000,
+                            duration: 5000, // 5 seconds
+                            refresh: 100, // Refresh every 100ms
+                            delay: 0, // No delay to eliminate left empty space
+                            onRefresh: function(chart) {
+                                // Remove old data points to prevent memory leak
+                                chart.data.datasets.forEach(dataset => {
+                                    if (dataset.data.length > MAX_DATA_POINTS) {
+                                        dataset.data.splice(0, dataset.data.length - MAX_DATA_POINTS);
+                                    }
+                                });
+                            }
+                        },
+                        ticks: {
+                            display: true,
+                            color: '#666',
+                            font: { size: 10 }
+                        },
+                        grid: {
+                            color: '#e0e0e0',
+                            drawTicks: false
                         }
                     },
                     y: {
-                        title: {
-                            display: true,
-                            text: 'Normalized Voltage'
+                        min: -10,
+                        max: 110,
+                        ticks: {
+                            display: false // Hide y-axis labels for cleaner look
                         },
-                        min: 0,
-                        max: 100
+                        grid: {
+                            color: '#f0f0f0',
+                            drawTicks: false
+                        }
                     }
                 },
-                animation: false
+                animation: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'nearest',
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 10,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        enabled: true,
+                        mode: 'nearest',
+                        intersect: false
+                    }
+                }
             }
         });
 
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            console.log(data);
-            if (data.channel_data) {
-                const now = Date.now();
-                const rawValue = data.channel_data[0];
+        function updateChannels() {
+            numChannels = parseInt(document.getElementById('channelSelect').value);
+            
+            // Show/hide datasets based on selection
+            chart.data.datasets.forEach((dataset, index) => {
+                dataset.hidden = index >= numChannels;
+            });
+            
+            // Dynamically adjust y-axis based on number of visible channels
+            const margin = 10;
+            const channelSpacing = 12;
+            const yMin = -margin;
+            const yMax = (numChannels - 1) * channelSpacing + margin;
+            
+            chart.options.scales.y.min = yMin;
+            chart.options.scales.y.max = yMax;
+            
+            chart.update();
+        }
+        
+        // Initialize with 8 channels visible
+        updateChannels();
+
+        function connectWebSocket() {
+            ws = new WebSocket(`ws://localhost:8000/api/v1/ws/live_eeg/${patientId}`);
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
                 
-                // Add to buffer for normalization
-                rawValueBuffer.push(rawValue);
-                if (rawValueBuffer.length > BUFFER_SIZE) {
-                    rawValueBuffer.shift(); // Remove oldest value
+                // Update seizure detection
+                seizureDetected = data.seizure_detected || false;
+                const alertDiv = document.getElementById('seizureAlert');
+                const mlDiv = document.getElementById('mlDetection');
+                
+                if (seizureDetected) {
+                    alertDiv.style.display = 'block';
+                    mlDiv.className = 'ml-detection seizure';
+                    mlDiv.textContent = '🚨 ML: SEIZURE DETECTED';
+                } else {
+                    alertDiv.style.display = 'none';
+                    mlDiv.className = 'ml-detection normal';
+                    mlDiv.textContent = '🤖 ML: Normal';
                 }
                 
-                // Normalize and add to chart
-                const normalizedValue = normalizeValue(rawValue);
-                chart.data.datasets[0].data.push({
-                    x: now,
-                    y: normalizedValue
+                if (data.channel_data && data.channel_data.length > 0) {
+                    const now = Date.now();
+                    dataPointCount++;
+                    
+                    // Process each channel
+                    for (let i = 0; i < 8 && i < data.channel_data.length; i++) {
+                        const rawValue = data.channel_data[i];
+                        
+                        // Add to buffer for normalization
+                        rawValueBuffers[i].push(rawValue);
+                        if (rawValueBuffers[i].length > BUFFER_SIZE) {
+                            rawValueBuffers[i].shift();
+                        }
+                        
+                        // Normalize with stacking offset
+                        const normalizedValue = normalizeValue(rawValue, i);
+                        
+                        // Add to chart
+                        chart.data.datasets[i].data.push({
+                            x: now,
+                            y: normalizedValue
+                        });
+                        
+                        // Keep only last MAX_DATA_POINTS to prevent lag
+                        if (chart.data.datasets[i].data.length > MAX_DATA_POINTS) {
+                            chart.data.datasets[i].data.shift();
+                        }
+                    }
+                    
+                    // Update stats
+                    const stats = document.getElementById('statsDisplay');
+                    stats.innerHTML = `
+                        <strong>Status:</strong> ${seizureDetected ? '🚨 SEIZURE DETECTED' : '✅ Normal'} | 
+                        <strong>Channels:</strong> ${numChannels} | 
+                        <strong>Data Points:</strong> ${dataPointCount} | 
+                        <strong>Buffer:</strong> ${chart.data.datasets[0].data.length} samples per channel
+                    `;
+                    
+                    chart.update('none'); // Update without animation for smooth real-time feel
+                }
+            };
+
+            ws.onopen = function(event) {
+                console.log("WebSocket connection established.");
+                document.getElementById('statusIndicator').textContent = 'Connected';
+                document.getElementById('statusIndicator').className = 'status connected';
+            };
+
+            ws.onclose = function(event) {
+                console.log("WebSocket connection closed.");
+                document.getElementById('statusIndicator').textContent = 'Disconnected';
+                document.getElementById('statusIndicator').className = 'status disconnected';
+                
+                // Clear chart data
+                chart.data.datasets.forEach(dataset => {
+                    dataset.data = [];
                 });
                 chart.update();
-            }
-        };
+                
+                // Attempt to reconnect after 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            };
 
-        ws.onopen = function(event) {
-            console.log("WebSocket connection established.");
-        };
+            ws.onerror = function(event) {
+                console.error("WebSocket error:", event);
+                document.getElementById('statusIndicator').textContent = 'Error';
+                document.getElementById('statusIndicator').className = 'status disconnected';
+            };
+        }
 
-        ws.onclose = function(event) {
-            console.log("WebSocket connection closed.");
-        };
-
-        ws.onerror = function(event) {
-            console.error("WebSocket error:", event);
-        };
+        // Start connection
+        connectWebSocket();
     </script>
 </body>
 </html>
